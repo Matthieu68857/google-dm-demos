@@ -1,0 +1,74 @@
+#!/bin/bash
+
+apt-get update
+apt-get install -y postgresql-client
+
+echo "-- Insert data into the orders table
+INSERT INTO orders (customer_id, product_id, purchase_price)
+SELECT
+  (SELECT customer_id FROM customers ORDER BY RANDOM() LIMIT 1),
+  product_id,
+  selling_price
+FROM products
+ORDER BY RANDOM()
+LIMIT 1
+/*action='CreateOrder', application='CheckoutService'*/;
+" > /tmp/insert_orders.sql
+
+echo "BEGIN;
+        SELECT * FROM products FOR UPDATE /*action='BeginPriceAdjustment', application='PricingService'*/;
+        UPDATE products 
+        SET selling_price = (
+                    SELECT MIN(sales_history.purchase_price)
+                    FROM sales_history 
+                    WHERE product_id = (
+                        SELECT product_id
+                        FROM products 
+                        ORDER BY selling_price DESC
+                        LIMIT 1
+                    )                  
+        )
+        WHERE product_id = (
+                SELECT product_id
+                FROM products 
+                ORDER BY selling_price DESC
+                LIMIT 1
+        )
+        /*action='UpdatePrice', application='PricingService'*/;
+COMMIT;" > /tmp/run_pricing.sql
+
+echo "SELECT customers.customer_id, customers.email, order_date, purchase_price
+FROM customers INNER JOIN orders
+ON customers.customer_id = orders.customer_id
+WHERE order_date > NOW() - INTERVAL '30 seconds'
+ORDER BY order_date ASC
+/*action='GenerateBill', application='BillingService'*/;" > /tmp/generate_billing.sql
+
+echo "DB_USER=postgres
+DB_PASSWRD=${password}
+DB_NAME=cymbalshop
+DB_IP=${ip}
+
+watch -n 60 psql "postgresql://\$DB_USER:\$DB_PASSWRD@\$DB_IP/\$DB_NAME" -f /tmp/run_pricing.sql -o /tmp/run_pricing.out" > /tmp/run_pricing.sh
+
+echo "DB_USER=postgres
+DB_PASSWRD=${password}
+DB_NAME=cymbalshop
+DB_IP=${ip}
+
+watch -n 5 psql "postgresql://\$DB_USER:\$DB_PASSWRD@\$DB_IP/\$DB_NAME" -f /tmp/insert_orders.sql" > /tmp/insert_orders.sh
+
+echo "DB_USER=postgres
+DB_PASSWRD=${password}
+DB_NAME=cymbalshop
+DB_IP=${ip}
+
+watch -n 10 psql "postgresql://\$DB_USER:\$DB_PASSWRD@\$DB_IP/\$DB_NAME" -f /tmp/generate_billing.sql" > /tmp/generate_billing.sh
+
+chmod +x /tmp/insert_orders.sh 
+chmod +x /tmp/generate_billing.sh
+chmod +x /tmp/run_pricing.sh
+
+nohup /tmp/run_pricing.sh >> /tmp/log.txt 2>&1 &
+nohup /tmp/insert_orders.sh >> /tmp/log.txt 2>&1 &
+nohup /tmp/generate_billing.sh >> /tmp/log.txt 2>&1 &
