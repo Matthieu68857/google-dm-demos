@@ -56,14 +56,6 @@ resource "google_sql_database_instance" "postgres" {
       value = "on"
     }
     database_flags {
-      name = "cron.database_name"
-      value = "cymbalshop"
-    }
-    database_flags {
-      name = "max_worker_processes"
-      value = 10
-    }
-    database_flags {
       name = "temp_file_limit"
       value = 10218770
     }
