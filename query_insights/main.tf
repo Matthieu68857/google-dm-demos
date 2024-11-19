@@ -59,6 +59,10 @@ resource "google_sql_database_instance" "postgres" {
       name = "temp_file_limit"
       value = 10218770
     }
+    database_flags {
+      name = "cloudsql.enable_index_advisor"
+      value = "on"
+    }
   }
 }
 
