@@ -14,7 +14,7 @@ provider "google" {
 }
 
 ######################################################
-# Cloud SQL Enterprise Postgres
+# Cloud SQL Enterprise Plus Postgres
 ######################################################
 
 resource "google_sql_database_instance" "postgres-primary" {
@@ -23,10 +23,10 @@ resource "google_sql_database_instance" "postgres-primary" {
   region           = "europe-west1"
   deletion_protection = false
   settings {
-    tier = "db-custom-1-3840"
+    tier = "db-perf-optimized-N-2"
     disk_size = 10
     availability_type = "REGIONAL" 
-    edition = "ENTERPRISE"
+    edition = "ENTERPRISE_PLUS"
     backup_configuration {
       enabled = true
       point_in_time_recovery_enabled = true
@@ -34,6 +34,11 @@ resource "google_sql_database_instance" "postgres-primary" {
       backup_retention_settings {
         retained_backups = 2
       }
+    }
+    ip_configuration {
+      ipv4_enabled                                  = false
+      private_network                               = "projects/mcornillon-demo/global/networks/default"
+      enable_private_path_for_google_cloud_services = true
     }
   }
 }
@@ -44,17 +49,26 @@ resource "google_sql_database_instance" "postgres-replica" {
   region           = "europe-west9"
   deletion_protection = false
   master_instance_name = google_sql_database_instance.postgres-primary.name
+  replica_configuration {
+    failover_target = true
+  }
   settings {
-    tier = "db-custom-1-3840"
+    tier = "db-perf-optimized-N-2"
     disk_size = 10
     availability_type = "ZONAL" 
-    edition = "ENTERPRISE"
+    edition = "ENTERPRISE_PLUS"
+    ip_configuration {
+      ipv4_enabled                                  = false
+      private_network                               = "projects/mcornillon-demo/global/networks/default"
+      enable_private_path_for_google_cloud_services = true
+    }
   }
+  
 }
 
-######################################################
-# Cloud SQL Enterprise Plus MySQL with Advanced DR
-######################################################
+# ######################################################
+# # Cloud SQL Enterprise Plus MySQL with Advanced DR
+# ######################################################
 
 resource "google_sql_database_instance" "mysql-primary" {
   name             = "mysql-demo-drp-primary"
